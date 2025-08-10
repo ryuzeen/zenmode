@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Santuário Digital 2.2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-gradient-start: #0a0a0a;
+            --bg-gradient-mid1: #1a1a2e;
+            --bg-gradient-mid2: #0f0c29;
+            --bg-gradient-end: #232a44;
+            --panel-bg: rgba(17, 24, 39, 0.6);
+            --text-color: #ffffff;
+            --text-muted-color: #9ca3af; /* gray-400 */
+            /* CORREÇÃO: Cores da areia com mais contraste */
+            --sand-color: #4a4a58;
+            --sand-rake-color: #6b6b7c;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(-45deg, var(--bg-gradient-start), var(--bg-gradient-mid1), var(--bg-gradient-mid2), var(--bg-gradient-end));
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+            color: var(--text-color);
+            transition: background 0.5s ease;
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .glow-on-hover:before {
+            content: '';
+            background: linear-gradient(45deg, #4f46e5, #ec4899, #22d3ee, #8b5cf6, #d946ef, #4f46e5);
+            position: absolute; top: -2px; left:-2px; background-size: 400%; z-index: -1;
+            filter: blur(5px); width: calc(100% + 4px); height: calc(100% + 4px);
+            animation: glowing 20s linear infinite; opacity: 0; transition: opacity .3s ease-in-out; border-radius: 0.75rem;
+        }
+        .glow-on-hover:hover:before { opacity: 1; }
+        .glow-on-hover { position: relative; z-index: 1; transition: all 0.3s ease; }
+
+        .control-panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: background-color 0.5s ease;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in { animation: fadeIn 0.8s ease-out forwards; }
+        
+        #relaxation-hub { display: none; opacity: 0; }
+        #youtube-modal { background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(5px); }
+
+        #breathing-visualizer {
+            width: 120px;
+            height: 120px;
+            background-color: #4f46e5;
+            border-radius: 50%;
+            transition: transform 4s ease-in-out;
+        }
+        
+        input[type=range] { -webkit-appearance: none; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { height: 5px; background: #4b5563; border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #ec4899; cursor: pointer; margin-top: -5.5px; }
+
+        .interactive-canvas { cursor: crosshair; background-color: #111827; }
+        .mood-emoji { transition: transform 0.2s ease; cursor: pointer; }
+        .mood-emoji:hover { transform: scale(1.2); }
+        .mood-emoji.selected { transform: scale(1.2); filter: saturate(1.5) brightness(1.2); }
+
+    </style>
+</head>
+<body class="text-white overflow-x-hidden">
+
+    <!-- TELA INICIAL -->
+    <div id="splash-screen" class="min-h-screen flex items-center justify-center p-4 transition-opacity duration-1000">
+        <div class="text-center space-y-8 z-10">
+            <h1 class="text-5xl md:text-7xl lg:text-8xl font-black tracking-tighter">
+                <span class="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-pink-500 to-cyan-400">
+                    Santuário Digital
+                </span>
+            </h1>
+            <p class="text-lg md:text-xl max-w-2xl mx-auto font-light" style="color: var(--text-muted-color);">
+                Um espaço criado para você relaxar, focar e encontrar calma. Desconecte-se do caos e recarregue suas energias.
+            </p>
+            <button id="startButton" class="glow-on-hover bg-gray-900 text-white font-bold py-3 px-8 rounded-xl text-lg shadow-lg hover:shadow-cyan-500/50">
+                Entrar
+            </button>
+        </div>
+    </div>
+
+    <!-- HUB DE RELAXAMENTO -->
+    <div id="relaxation-hub" class="min-h-screen w-full p-4 md:p-8 transition-opacity duration-1000">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 w-full max-w-screen-xl mx-auto">
+            
+            <div class="control-panel rounded-2xl p-4 fade-in lg:col-span-full">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-xl font-bold">Tema Visual</h2>
+                    <div class="flex space-x-2">
+                        <button class="theme-button bg-gray-800 px-3 py-1 rounded-lg text-sm" data-theme="dark">Noturno</button>
+                        <button class="theme-button bg-pink-400 px-3 py-1 rounded-lg text-sm" data-theme="dawn">Amanhecer</button>
+                        <button class="theme-button bg-green-700 px-3 py-1 rounded-lg text-sm" data-theme="forest">Floresta</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-panel rounded-2xl p-6 space-y-4 fade-in">
+                <h2 class="text-2xl font-bold">Mixer de Sons</h2>
+                <div class="space-y-3">
+                    <label class="block">Chuva</label>
+                    <input type="range" class="sound-slider w-full" data-sound="rain" min="0" max="100" value="0">
+                    <label class="block">Floresta</label>
+                    <input type="range" class="sound-slider w-full" data-sound="forest" min="0" max="100" value="0">
+                    <label class="block">Ondas</label>
+                    <input type="range" class="sound-slider w-full" data-sound="waves" min="0" max="100" value="0">
+                </div>
+            </div>
+
+            <div class="control-panel rounded-2xl p-6 space-y-4 fade-in">
+                <h2 class="text-2xl font-bold">Timer de Foco</h2>
+                <p id="timer-display" class="text-5xl font-mono text-center py-4">25:00</p>
+                <div class="flex space-x-2">
+                    <button id="timer-start" class="w-full bg-pink-500 hover:bg-pink-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">Iniciar</button>
+                    <button id="timer-reset" class="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Resetar</button>
+                </div>
+            </div>
+
+            <div class="control-panel rounded-2xl p-6 space-y-4 fade-in">
+                <h2 class="text-2xl font-bold">Vídeo Ambiente</h2>
+                <p class="text-sm" style="color: var(--text-muted-color);">Cole um link do YouTube para começar.</p>
+                <input id="youtube-link" type="text" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2 text-white" placeholder="https://www.youtube.com/watch?v=...">
+                <button id="youtube-button" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">Carregar Vídeo</button>
+            </div>
+
+            <div class="control-panel rounded-2xl p-6 space-y-4 fade-in items-center">
+                <h2 class="text-2xl font-bold">Respiração Guiada</h2>
+                <div class="flex-grow flex flex-col items-center justify-center space-y-4">
+                    <div id="breathing-visualizer"></div>
+                    <p id="breathing-text" class="text-lg font-semibold">Clique para Iniciar</p>
+                </div>
+            </div>
+            
+            <div class="control-panel rounded-2xl p-6 space-y-4 fade-in md:col-span-2">
+                 <h2 class="text-2xl font-bold">Diário de Gratidão</h2>
+                 <textarea id="gratitude-journal" class="w-full flex-grow bg-gray-800 border border-gray-600 rounded-lg p-2 text-white resize-none" placeholder="Pelo que você é grato(a) hoje?"></textarea>
+                 <p class="text-xs text-right" style="color: var(--text-muted-color);">Salvo automaticamente.</p>
+            </div>
+
+            <div class="control-panel rounded-2xl p-6 space-y-4 fade-in justify-between">
+                <div>
+                    <h2 class="text-2xl font-bold">Citação do Momento</h2>
+                    <blockquote id="quote-text" class="text-lg italic my-4 border-l-4 border-cyan-400 pl-4">Carregando...</blockquote>
+                    <cite id="quote-author" class="block text-right not-italic"></cite>
+                </div>
+                <button id="new-quote-button" class="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg transition-colors mt-4">Nova Citação</button>
+            </div>
+
+            <div class="control-panel rounded-2xl p-6 space-y-4 fade-in items-center">
+                 <h2 class="text-2xl font-bold">Arte Generativa</h2>
+                 <canvas id="mandala-canvas" width="200" height="200" class="interactive-canvas rounded-lg my-2"></canvas>
+                 <button id="new-mandala-button" class="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">Gerar Mandala</button>
+            </div>
+            
+            <div class="control-panel rounded-2xl p-6 space-y-4 fade-in items-center">
+                 <h2 class="text-2xl font-bold">Jardim Zen</h2>
+                 <canvas id="zen-garden-canvas" width="200" height="200" class="rounded-lg my-2"></canvas>
+                 <button id="clear-zen-button" class="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Limpar Areia</button>
+            </div>
+
+            <!-- NOVO: Rastreador de Humor -->
+            <div class="control-panel rounded-2xl p-6 space-y-4 fade-in">
+                <h2 class="text-2xl font-bold">Rastreador de Humor</h2>
+                <p class="text-sm" style="color: var(--text-muted-color);">Como você se sente hoje?</p>
+                <div class="flex justify-around py-4">
+                    <span class="mood-emoji text-4xl" data-mood="feliz">😊</span>
+                    <span class="mood-emoji text-4xl" data-mood="neutro">😐</span>
+                    <span class="mood-emoji text-4xl" data-mood="triste">😔</span>
+                    <span class="mood-emoji text-4xl" data-mood="produtivo">🚀</span>
+                </div>
+                <div id="mood-history" class="flex justify-between text-center text-xs">
+                    <!-- Histórico será preenchido pelo JS -->
+                </div>
+            </div>
+
+            <!-- NOVO: Céu Estrelado -->
+            <div class="control-panel rounded-2xl p-6 space-y-4 fade-in items-center">
+                <h2 class="text-2xl font-bold">Céu Estrelado</h2>
+                <canvas id="starry-sky-canvas" width="200" height="200" class="interactive-canvas rounded-lg my-2"></canvas>
+                <button id="clear-sky-button" class="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Limpar Céu</button>
+            </div>
+
+            <!-- NOVO: Vaga-lumes -->
+            <div class="control-panel rounded-2xl p-6 space-y-4 fade-in items-center">
+                <h2 class="text-2xl font-bold">Vaga-lumes</h2>
+                <canvas id="fireflies-canvas" width="200" height="200" class="interactive-canvas rounded-lg my-2"></canvas>
+                <p class="text-xs" style="color: var(--text-muted-color);">Mova o mouse para interagir.</p>
+            </div>
+        </div>
+    </div>
+    
+    <div id="youtube-modal" class="fixed inset-0 w-full h-full items-center justify-center hidden z-50">
+        <div class="relative w-full max-w-4xl p-4">
+            <div class="aspect-w-16 aspect-h-9 bg-black rounded-lg shadow-2xl">
+                <iframe id="youtube-iframe" class="w-full h-full" src="" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+            </div>
+            <button id="close-youtube" class="absolute -top-2 -right-2 bg-white text-black rounded-full w-8 h-8 flex items-center justify-center font-bold text-xl">&times;</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const startButton = document.getElementById('startButton');
+            startButton.addEventListener('click', () => {
+                document.getElementById('splash-screen').style.opacity = '0';
+                setTimeout(() => {
+                    document.getElementById('splash-screen').style.display = 'none';
+                    document.getElementById('relaxation-hub').style.display = 'block';
+                    setTimeout(() => document.getElementById('relaxation-hub').style.opacity = '1', 50);
+                }, 600);
+            });
+
+            // --- PONTO CENTRAL DE INICIALIZAÇÃO ---
+            initThemeSelector();
+            initSoundMixer();
+            initTimer();
+            initYoutubePlayer();
+            initBreathingExercise();
+            initGratitudeJournal();
+            initQuoteGenerator();
+            initMandalaGenerator();
+            initZenGarden();
+            // ADIÇÃO DAS NOVAS FUNÇÕES
+            initMoodTracker();
+            initStarrySky();
+            initFireflies();
+        });
+
+        function initThemeSelector() {
+            const themes = {
+                dark: { '--bg-gradient-start': '#0a0a0a', '--bg-gradient-mid1': '#1a1a2e', '--bg-gradient-mid2': '#0f0c29', '--bg-gradient-end': '#232a44', '--sand-color': '#4a4a58', '--sand-rake-color': '#6b6b7c' },
+                dawn: { '--bg-gradient-start': '#ff7e5f', '--bg-gradient-mid1': '#feb47b', '--bg-gradient-mid2': '#f89b4e', '--bg-gradient-end': '#f06e47', '--sand-color': '#f3d1b6', '--sand-rake-color': '#ffffff' },
+                forest: { '--bg-gradient-start': '#134e5e', '--bg-gradient-mid1': '#71b280', '--bg-gradient-mid2': '#136a8a', '--bg-gradient-end': '#2f4f4f', '--sand-color': '#a3bda4', '--sand-rake-color': '#d1e2d3' }
+            };
+            document.querySelectorAll('.theme-button').forEach(button => {
+                button.addEventListener('click', () => {
+                    const theme = themes[button.dataset.theme];
+                    for (const [key, value] of Object.entries(theme)) {
+                        document.documentElement.style.setProperty(key, value);
+                    }
+                    const zenCanvas = document.getElementById('zen-garden-canvas');
+                    if (zenCanvas) {
+                       const ctx = zenCanvas.getContext('2d');
+                       ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--sand-color').trim();
+                       ctx.fillRect(0, 0, zenCanvas.width, zenCanvas.height);
+                    }
+                });
+            });
+        }
+
+        function initSoundMixer() {
+            const sliders = document.querySelectorAll('.sound-slider');
+            let sounds = {};
+            let isToneStarted = false;
+            const soundSources = {
+                rain: { type: 'noise', options: { type: 'pink', volume: -20 }, filter: { type: 'AutoFilter', options: { frequency: '4n', baseFrequency: 200, octaves: 4 } } },
+                forest: { type: 'player', url: 'https://tonejs.github.io/audio/berklee/campfire.mp3', options: { loop: true, volume: -10 } },
+                waves: { type: 'player', url: 'https://tonejs.github.io/audio/berklee/sea-shore.mp3', options: { loop: true, volume: -10 } }
+            };
+            async function setupSound(soundName) {
+                if (!isToneStarted) { await Tone.start(); isToneStarted = true; }
+                const sourceInfo = soundSources[soundName];
+                if (sourceInfo.type === 'noise') {
+                    const noise = new Tone.Noise(sourceInfo.options.type).toDestination();
+                    noise.volume.value = sourceInfo.options.volume;
+                    const filter = new Tone[sourceInfo.filter.type](sourceInfo.filter.options).connect(noise);
+                    sounds[soundName] = { node: noise, filter: filter, isPlaying: false };
+                } else if (sourceInfo.type === 'player') {
+                    const player = new Tone.Player(sourceInfo.url).toDestination();
+                    player.loop = sourceInfo.options.loop;
+                    player.volume.value = sourceInfo.options.volume;
+                    await Tone.loaded();
+                    sounds[soundName] = { node: player, isPlaying: false };
+                }
+            }
+            sliders.forEach(slider => {
+                slider.addEventListener('input', async (e) => {
+                    const soundName = e.target.dataset.sound;
+                    const volume = parseInt(e.target.value);
+                    if (!sounds[soundName]) await setupSound(soundName);
+                    const sound = sounds[soundName];
+                    if (volume > 0 && !sound.isPlaying) {
+                        if (sound.node.start) sound.node.start();
+                        if (sound.filter && sound.filter.start) sound.filter.start();
+                        sound.isPlaying = true;
+                    } else if (volume === 0 && sound.isPlaying) {
+                        if (sound.node.stop) sound.node.stop();
+                        if (sound.filter && sound.filter.stop) sound.filter.stop();
+                        sound.isPlaying = false;
+                    }
+                    sound.node.volume.value = volume === 0 ? -Infinity : (volume / 100) * 30 - 30;
+                });
+            });
+        }
+        function initTimer() {
+            const timerDisplay = document.getElementById('timer-display');
+            const timerStart = document.getElementById('timer-start');
+            const timerReset = document.getElementById('timer-reset');
+            let timerInterval, isTimerRunning = false, timerSeconds = 25 * 60;
+            function updateDisplay() { timerDisplay.textContent = `${String(Math.floor(timerSeconds / 60)).padStart(2, '0')}:${String(timerSeconds % 60).padStart(2, '0')}`; }
+            timerStart.addEventListener('click', () => {
+                if (isTimerRunning) { clearInterval(timerInterval); timerStart.textContent = 'Continuar'; } 
+                else {
+                    timerStart.textContent = 'Pausar';
+                    timerInterval = setInterval(() => {
+                        timerSeconds--;
+                        updateDisplay();
+                        if (timerSeconds <= 0) {
+                            clearInterval(timerInterval);
+                            timerStart.textContent = 'Iniciar';
+                            const synth = new Tone.Synth().toDestination();
+                            synth.triggerAttackRelease("C5", "8n", Tone.now());
+                        }
+                    }, 1000);
+                }
+                isTimerRunning = !isTimerRunning;
+            });
+            timerReset.addEventListener('click', () => { clearInterval(timerInterval); isTimerRunning = false; timerSeconds = 25 * 60; updateDisplay(); timerStart.textContent = 'Iniciar'; });
+        }
+        function initYoutubePlayer() {
+            const youtubeButton = document.getElementById('youtube-button');
+            const youtubeModal = document.getElementById('youtube-modal');
+            const closeYoutube = document.getElementById('close-youtube');
+            const youtubeIframe = document.getElementById('youtube-iframe');
+            const youtubeLinkInput = document.getElementById('youtube-link');
+            function getYoutubeId(url) { const match = url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/); return (match && match[2].length === 11) ? match[2] : null; }
+            youtubeButton.addEventListener('click', () => {
+                const videoId = getYoutubeId(youtubeLinkInput.value);
+                if (videoId) { youtubeIframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&loop=1&playlist=${videoId}&controls=0`; youtubeModal.classList.remove('hidden'); youtubeModal.classList.add('flex'); } 
+                else { alert("Por favor, insira um link válido do YouTube."); }
+            });
+            closeYoutube.addEventListener('click', () => { youtubeModal.classList.add('hidden'); youtubeIframe.src = ""; });
+        }
+        function initBreathingExercise() {
+            const visualizer = document.getElementById('breathing-visualizer');
+            const text = document.getElementById('breathing-text');
+            let isBreathing = false, currentStep = 0;
+            const cycle = [ { text: "Inspire...", duration: 4000, scale: 1.5 }, { text: "Segure", duration: 4000, scale: 1.5 }, { text: "Expire...", duration: 4000, scale: 1 }, { text: "Segure", duration: 4000, scale: 1 } ];
+            function doBreathe() {
+                if (!isBreathing) return;
+                const step = cycle[currentStep];
+                text.textContent = step.text;
+                visualizer.style.transform = `scale(${step.scale})`;
+                currentStep = (currentStep + 1) % cycle.length;
+                setTimeout(doBreathe, step.duration);
+            }
+            visualizer.addEventListener('click', () => {
+                isBreathing = !isBreathing;
+                if (isBreathing) { doBreathe(); } 
+                else { text.textContent = "Clique para Iniciar"; visualizer.style.transform = 'scale(1)'; }
+            });
+        }
+        function initGratitudeJournal() {
+            const journal = document.getElementById('gratitude-journal');
+            journal.value = localStorage.getItem('gratitudeJournal') || '';
+            journal.addEventListener('keyup', () => { localStorage.setItem('gratitudeJournal', journal.value); });
+        }
+        function initQuoteGenerator() {
+            const quoteText = document.getElementById('quote-text');
+            const quoteAuthor = document.getElementById('quote-author');
+            const newQuoteButton = document.getElementById('new-quote-button');
+            const quotes = [ { text: "A paz vem de dentro. Não a procure fora.", author: "Buda" }, { text: "A felicidade não é algo pronto. Ela vem de suas próprias ações.", author: "Dalai Lama" }, { text: "Respire. Deixe ir. E lembre-se que este exato momento é o único que você sabe que tem com certeza.", author: "Oprah Winfrey" }, { text: "A melhor hora para plantar uma árvore foi há 20 anos. A segunda melhor hora é agora.", author: "Provérbio Chinês" }, { text: "Acalme a mente e a alma falará.", author: "Ma Jaya Sati Bhagavati" } ];
+            let lastQuoteIndex = -1;
+            function getNewQuote() {
+                let randomIndex;
+                do { randomIndex = Math.floor(Math.random() * quotes.length); } while (randomIndex === lastQuoteIndex);
+                lastQuoteIndex = randomIndex;
+                quoteText.textContent = `"${quotes[randomIndex].text}"`;
+                quoteAuthor.textContent = `- ${quotes[randomIndex].author}`;
+            }
+            newQuoteButton.addEventListener('click', getNewQuote);
+            getNewQuote();
+        }
+        function initMandalaGenerator() {
+            const canvas = document.getElementById('mandala-canvas');
+            const ctx = canvas.getContext('2d');
+            const newMandalaButton = document.getElementById('new-mandala-button');
+            function generateMandala() {
+                ctx.fillStyle = '#111827';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                const centerX = canvas.width / 2, centerY = canvas.height / 2;
+                const segments = Math.floor(Math.random() * 12) + 6;
+                const iterations = Math.floor(Math.random() * 5) + 3;
+                ctx.save();
+                ctx.translate(centerX, centerY);
+                for (let j = 0; j < segments; j++) {
+                    ctx.rotate((Math.PI * 2) / segments);
+                    for (let i = 0; i < iterations; i++) {
+                        ctx.beginPath();
+                        ctx.moveTo(0, 0);
+                        const x1 = Math.random() * 80 + 10, y1 = Math.random() * 80 + 10;
+                        const x2 = Math.random() * 80 + 10, y2 = Math.random() * 80 + 10;
+                        ctx.bezierCurveTo(x1, y1, x2, y2, 0, 0);
+                        ctx.strokeStyle = `hsla(${Math.random() * 360}, 100%, 70%, 0.6)`;
+                        ctx.lineWidth = Math.random() * 2 + 0.5;
+                        ctx.stroke();
+                    }
+                }
+                ctx.restore();
+            }
+            newMandalaButton.addEventListener('click', generateMandala);
+            generateMandala();
+        }
+
+        // --- MÓDULO: JARDIM ZEN (ATUALIZADO) ---
+        function initZenGarden() {
+            const canvas = document.getElementById('zen-garden-canvas');
+            const ctx = canvas.getContext('2d');
+            const clearButton = document.getElementById('clear-zen-button');
+            let isDrawing = false, lastX = 0, lastY = 0;
+
+            function drawSand() {
+                ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--sand-color').trim();
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            function getMousePos(evt) {
+                const rect = canvas.getBoundingClientRect();
+                return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+            }
+
+            function rake(e) {
+                if (!isDrawing) return;
+                const { x, y } = getMousePos(e);
+                ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--sand-rake-color').trim();
+                ctx.lineWidth = 2; // Linha mais grossa para visibilidade
+                ctx.beginPath();
+                // Simula os dentes de um ancinho
+                for(let i = -4; i <= 4; i += 4) {
+                    ctx.moveTo(lastX + i, lastY);
+                    ctx.lineTo(x + i, y);
+                }
+                ctx.stroke();
+                [lastX, lastY] = [x, y];
+            }
+            
+            canvas.addEventListener('mousedown', (e) => { isDrawing = true; [lastX, lastY] = Object.values(getMousePos(e)); });
+            canvas.addEventListener('mousemove', rake);
+            ['mouseup', 'mouseout'].forEach(evt => canvas.addEventListener(evt, () => isDrawing = false));
+            clearButton.addEventListener('click', drawSand);
+            drawSand();
+        }
+
+        // --- NOVO MÓDULO: RASTREADOR DE HUMOR ---
+        function initMoodTracker() {
+            const historyContainer = document.getElementById('mood-history');
+            const moodEmojis = document.querySelectorAll('.mood-emoji');
+            const moodMap = { feliz: '😊', neutro: '😐', triste: '😔', produtivo: '🚀' };
+            let moods = JSON.parse(localStorage.getItem('moodHistory')) || {};
+
+            function saveMood(mood) {
+                const today = new Date().toISOString().split('T')[0];
+                moods[today] = mood;
+                localStorage.setItem('moodHistory', JSON.stringify(moods));
+                renderHistory();
+            }
+
+            function renderHistory() {
+                historyContainer.innerHTML = '';
+                for (let i = 6; i >= 0; i--) {
+                    const date = new Date();
+                    date.setDate(date.getDate() - i);
+                    const dateString = date.toISOString().split('T')[0];
+                    const dayOfWeek = date.toLocaleDateString('pt-BR', { weekday: 'short' }).slice(0, 3);
+                    
+                    const mood = moods[dateString];
+                    const display = mood ? moodMap[mood] : '·';
+
+                    const dayEl = document.createElement('div');
+                    dayEl.innerHTML = `<div class="font-bold">${dayOfWeek}</div><div class="mt-1">${display}</div>`;
+                    historyContainer.appendChild(dayEl);
+                }
+                 updateSelectedEmoji();
+            }
+            
+            function updateSelectedEmoji() {
+                const today = new Date().toISOString().split('T')[0];
+                const todaysMood = moods[today];
+                moodEmojis.forEach(emoji => {
+                    emoji.classList.toggle('selected', emoji.dataset.mood === todaysMood);
+                });
+            }
+
+            moodEmojis.forEach(emoji => {
+                emoji.addEventListener('click', () => saveMood(emoji.dataset.mood));
+            });
+            
+            renderHistory();
+        }
+
+        // --- NOVO MÓDULO: CÉU ESTRELADO ---
+        function initStarrySky() {
+            const canvas = document.getElementById('starry-sky-canvas');
+            const ctx = canvas.getContext('2d');
+            const clearButton = document.getElementById('clear-sky-button');
+            let stars = [];
+
+            function draw() {
+                ctx.fillStyle = '#111827';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                stars.forEach(star => {
+                    ctx.beginPath();
+                    ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity})`;
+                    ctx.fill();
+                });
+            }
+
+            canvas.addEventListener('click', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                stars.push({
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top,
+                    radius: Math.random() * 1.5 + 0.5,
+                    opacity: Math.random() * 0.5 + 0.5
+                });
+                draw();
+            });
+
+            clearButton.addEventListener('click', () => { stars = []; draw(); });
+            draw();
+        }
+
+        // --- NOVO MÓDULO: VAGA-LUMES ---
+        function initFireflies() {
+            const canvas = document.getElementById('fireflies-canvas');
+            const ctx = canvas.getContext('2d');
+            let fireflies = [];
+            let mouse = { x: null, y: null };
+            const numFireflies = 20;
+
+            for (let i = 0; i < numFireflies; i++) {
+                fireflies.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    radius: Math.random() * 2 + 1,
+                    vx: Math.random() * 0.2 - 0.1,
+                    vy: Math.random() * 0.2 - 0.1,
+                    opacity: Math.random() * 0.5 + 0.2
+                });
+            }
+
+            function update() {
+                ctx.fillStyle = '#111827';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                fireflies.forEach(f => {
+                    f.x += f.vx;
+                    f.y += f.vy;
+
+                    if (mouse.x) {
+                        const dx = f.x - mouse.x;
+                        const dy = f.y - mouse.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        if (distance < 50) {
+                            f.x += dx / distance * 0.5;
+                            f.y += dy / distance * 0.5;
+                        }
+                    }
+
+                    if (f.x < 0 || f.x > canvas.width) f.vx *= -1;
+                    if (f.y < 0 || f.y > canvas.height) f.vy *= -1;
+                    
+                    f.opacity += Math.random() > 0.95 ? (Math.random() > 0.5 ? 0.3 : -0.3) : 0;
+                    if (f.opacity < 0.2) f.opacity = 0.2;
+                    if (f.opacity > 1) f.opacity = 1;
+
+                    ctx.beginPath();
+                    ctx.arc(f.x, f.y, f.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(167, 243, 208, ${f.opacity})`; // mint green
+                    ctx.fill();
+                });
+                requestAnimationFrame(update);
+            }
+
+            canvas.addEventListener('mousemove', e => {
+                const rect = canvas.getBoundingClientRect();
+                mouse.x = e.clientX - rect.left;
+                mouse.y = e.clientY - rect.top;
+            });
+            canvas.addEventListener('mouseout', () => { mouse.x = null; mouse.y = null; });
+
+            update();
+        }
+        
+    </script>
+</body>
+</html>
