@@ -83,13 +83,6 @@
         .mood-emoji:hover { transform: scale(1.2); }
         .mood-emoji.selected { transform: scale(1.2); filter: saturate(1.5) brightness(1.2); }
 
-        #resizable-video-wrapper {
-            resize: vertical;
-            overflow: auto;
-            min-height: 200px;
-            max-height: 80vh;
-        }
-
     </style>
 </head>
 <body class="text-white overflow-x-hidden">
@@ -126,23 +119,17 @@
                 </div>
             </div>
 
-           <div class="control-panel rounded-2xl p-6 space-y-4 fade-in">
+            <div class="control-panel rounded-2xl p-6 space-y-4 fade-in">
                 <h2 class="text-2xl font-bold">Mixer de Sons</h2>
-                <p class="text-sm" style="color: var(--text-muted-color);">Use sons de fundo para relaxar.</p>
-                    <div class="space-y-2">
-                        <button data-sound="rain" class="sound-toggle-button w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
-                            Tocar Chuva
-                        </button>
-                        <button data-sound="fan" class="sound-toggle-button w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
-                            Tocar Ventilador
-                        </button>
-                        <button data-sound="waves" class="sound-toggle-button w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
-                            Tocar Ondas
-                        </button>
-                    </div>
+                <div class="space-y-3">
+                    <label class="block">Chuva</label>
+                    <input type="range" class="sound-slider w-full" data-sound="rain" min="0" max="100" value="0">
+                    <label class="block">Floresta</label>
+                    <input type="range" class="sound-slider w-full" data-sound="forest" min="0" max="100" value="0">
+                    <label class="block">Ondas</label>
+                    <input type="range" class="sound-slider w-full" data-sound="waves" min="0" max="100" value="0">
+                </div>
             </div>
-
-            <div id="hidden-audio-players" class="hidden"></div>
 
             <div class="control-panel rounded-2xl p-6 space-y-4 fade-in">
                 <h2 class="text-2xl font-bold">Timer de Foco</h2>
@@ -286,46 +273,30 @@
         }
 
         function initSoundMixer() {
-            const soundButtons = document.querySelectorAll('.sound-toggle-button');
-            const playersContainer = document.getElementById('hidden-audio-players');
-
-            const sounds = {
-                rain: { videoId: 'DrvKrajkpGw', isPlaying: false, element: null },
-                fan: { videoId: '8oW6a8Eb_Aw', isPlaying: false, element: null }, // Trocado para ventilador
-                waves: { videoId: 'AMNyQds2ABQ', isPlaying: false, element: null }
+            const sliders = document.querySelectorAll('.sound-slider');
+            let sounds = {};
+            let isToneStarted = false;
+            const soundSources = {
+                rain: { type: 'noise', options: { type: 'pink', volume: -20 }, filter: { type: 'AutoFilter', options: { frequency: '4n', baseFrequency: 200, octaves: 4 } } },
+                forest: { type: 'player', url: 'https://tonejs.github.io/audio/berklee/campfire.mp3', options: { loop: true, volume: -10 } },
+                waves: { type: 'player', url: 'https://tonejs.github.io/audio/berklee/sea-shore.mp3', options: { loop: true, volume: -10 } }
             };
-
-            soundButtons.forEach(button => {
-                button.addEventListener('click', () => {
-                    const soundName = button.dataset.sound;
-                    const sound = sounds[soundName];
-
-                    if (sound.isPlaying) {
-                        // Para o som
-                    if (sound.element) {
-                        playersContainer.removeChild(sound.element);
-                    }
-                    sound.element = null;
-                    sound.isPlaying = false;
-                    button.textContent = `Tocar ${soundName.charAt(0).toUpperCase() + soundName.slice(1).replace('fan', 'Ventilador')}`;
-                    button.classList.replace('bg-red-500', 'bg-cyan-600');
-                    button.classList.replace('hover:bg-red-600', 'hover:bg-cyan-700');
-                } else {
-                    // Toca o som
-                        const iframe = document.createElement('iframe');
-                        iframe.setAttribute('src', `https://www.youtube.com/embed/${sound.videoId}?autoplay=1&loop=1&playlist=${sound.videoId}&controls=0`);
-                        iframe.setAttribute('frameborder', '0');
-                        iframe.setAttribute('allow', 'autoplay');
-                        sound.element = iframe;
-                        sound.isPlaying = true;
-                        playersContainer.appendChild(iframe);
-                        button.textContent = `Parar ${soundName.charAt(0).toUpperCase() + soundName.slice(1).replace('fan', 'Ventilador')}`;
-                        button.classList.replace('bg-cyan-600', 'bg-red-500');
-                        button.classList.replace('hover:bg-cyan-700', 'hover:bg-red-600');
-                    }
-                });
-            });
-        }
+            async function setupSound(soundName) {
+                if (!isToneStarted) { await Tone.start(); isToneStarted = true; }
+                const sourceInfo = soundSources[soundName];
+                if (sourceInfo.type === 'noise') {
+                    const noise = new Tone.Noise(sourceInfo.options.type).toDestination();
+                    noise.volume.value = sourceInfo.options.volume;
+                    const filter = new Tone[sourceInfo.filter.type](sourceInfo.filter.options).connect(noise);
+                    sounds[soundName] = { node: noise, filter: filter, isPlaying: false };
+                } else if (sourceInfo.type === 'player') {
+                    const player = new Tone.Player(sourceInfo.url).toDestination();
+                    player.loop = sourceInfo.options.loop;
+                    player.volume.value = sourceInfo.options.volume;
+                    await Tone.loaded();
+                    sounds[soundName] = { node: player, isPlaying: false };
+                }
+            }
             sliders.forEach(slider => {
                 slider.addEventListener('input', async (e) => {
                     const soundName = e.target.dataset.sound;
